@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Territory War Defense Planner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+  :root{
+    --bg-deep:#060c16;
+    --bg-panel:#0d1b2e;
+    --bg-panel-2:#0a1728;
+    --line-gold:#c9a35c;
+    --line-gold-dim:rgba(201,163,92,0.32);
+    --cyan:#5fd4ff;
+    --cyan-dim:rgba(95,212,255,0.25);
+    --green:#33d17a;
+    --green-dim:rgba(51,209,122,0.25);
+    --red:#ff6161;
+    --text-1:#eaf4ff;
+    --text-2:#7d9ec2;
+    --text-3:#4d6584;
+    --font-display:'Orbitron', sans-serif;
+    --font-body:'Rajdhani', sans-serif;
+    --font-mono:'Share Tech Mono', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(95,212,255,0.08), transparent 55%),
+      radial-gradient(ellipse at 50% 110%, rgba(51,209,122,0.05), transparent 55%),
+      var(--bg-deep);
+    background-attachment:fixed;
+    font-family:var(--font-body);
+    color:var(--text-1);
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:34px 34px;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  button{ font-family:inherit; }
+  input{ font-family:inherit; }
+
+  /* ---------- Header ---------- */
+  .app-header{
+    position:relative; z-index:1;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    padding:22px clamp(16px,4vw,44px) 14px;
+    border-bottom:1px solid var(--line-gold-dim);
+    flex-wrap:wrap;
+  }
+  .brand-eyebrow{
+    font-family:var(--font-mono);
+    font-size:11px; letter-spacing:.22em; color:var(--text-3);
+    text-transform:uppercase; margin:0 0 4px;
+  }
+  .brand-title{
+    font-family:var(--font-display); font-weight:900;
+    font-size:clamp(22px,3.6vw,32px); letter-spacing:.04em;
+    margin:0; color:var(--text-1);
+    text-shadow:0 0 18px rgba(95,212,255,0.35);
+  }
+  .brand-title span{ color:var(--cyan); }
+
+  .totals-box{
+    border:1px solid var(--line-gold-dim);
+    background:linear-gradient(160deg, rgba(18,34,56,.55), rgba(10,20,34,.55));
+    border-radius:10px;
+    padding:10px 18px;
+    min-width:190px;
+  }
+  .totals-label{
+    font-family:var(--font-mono); font-size:10px; letter-spacing:.16em;
+    color:var(--text-3); text-transform:uppercase;
+  }
+  .totals-value{
+    font-family:var(--font-mono); font-size:22px; color:var(--cyan);
+    margin-top:2px;
+  }
+  .totals-value b{ color:var(--text-1); font-weight:400; }
+  .totals-bar{
+    width:100%; height:4px; margin-top:8px; border-radius:2px;
+    background:rgba(255,255,255,0.08); overflow:hidden;
+  }
+  .totals-bar i{ display:block; height:100%; background:linear-gradient(90deg, var(--cyan), var(--green)); width:0%; transition:width .35s ease; }
+
+  .reset-link{
+    margin-top:8px; background:none; border:none; cursor:pointer;
+    font-family:var(--font-mono); font-size:10px; letter-spacing:.12em;
+    color:var(--text-3); text-transform:uppercase; padding:0;
+  }
+  .reset-link:hover{ color:var(--red); }
+
+  /* ---------- Map stage ---------- */
+  .map-stage{
+    position:relative; z-index:1;
+    padding:34px 16px 10px;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .status-line{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.14em;
+    color:var(--text-3); text-transform:uppercase; margin-bottom:18px; text-align:center;
+  }
+
+  .holomap-wrap{ position:relative; width:min(720px,96vw); }
+  .holomap-wrap::before, .holomap-wrap::after,
+  .corner-tl, .corner-br{
+    content:''; position:absolute; width:22px; height:22px;
+    border-color:var(--line-gold); pointer-events:none;
+  }
+  .corner-tl{ top:-10px; left:-10px; border-top:2px solid var(--line-gold); border-left:2px solid var(--line-gold); }
+  .corner-tr{ top:-10px; right:-10px; border-top:2px solid var(--line-gold); border-right:2px solid var(--line-gold); position:absolute; width:22px; height:22px;}
+  .corner-bl{ bottom:-10px; left:-10px; border-bottom:2px solid var(--line-gold); border-left:2px solid var(--line-gold); position:absolute; width:22px; height:22px;}
+  .corner-br{ bottom:-10px; right:-10px; border-bottom:2px solid var(--line-gold); border-right:2px solid var(--line-gold); }
+
+  .holomap{
+    position:relative; width:100%; aspect-ratio:1;
+    border-radius:50%;
+    border:2px solid var(--line-gold);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,.6),
+      0 0 50px rgba(95,212,255,.14),
+      inset 0 0 70px rgba(0,0,0,.65);
+    overflow:hidden;
+    background:radial-gradient(circle at 50% 40%, #10233b, #060d18 78%);
+  }
+  .radar-sweep{
+    position:absolute; inset:-10%;
+    background:conic-gradient(from 0deg, rgba(95,212,255,.32), transparent 22%, transparent 100%);
+    animation:sweep 9s linear infinite;
+    mix-blend-mode:screen;
+    opacity:.55;
+    pointer-events:none;
+    z-index:1;
+  }
+  @keyframes sweep{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .radar-sweep{ animation:none; } }
+
+  .grid-inset{
+    position:absolute; inset:9%; z-index:2;
+  }
+  .sector-grid{
+    display:grid; width:100%; height:100%;
+    grid-template-columns:repeat(4,1fr);
+    grid-template-rows:repeat(6,1fr);
+    grid-template-areas:
+      "g_shipb g_shipa g_2a g_1a"
+      "g_shipb g_shipa g_2a g_1a"
+      "g_4a    g_3a    g_2a g_1a"
+      "g_4a    g_3a    g_2b g_1b"
+      "g_4b    g_3b    g_2b g_1b"
+      "g_4b    g_3b    g_2b g_1b";
+  }
+  .sector{
+    border:1px solid var(--line-gold-dim);
+    background:linear-gradient(160deg, rgba(18,34,56,.55), rgba(8,16,28,.65));
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; cursor:pointer; padding:5px 3px; position:relative;
+    transition:background .18s ease, box-shadow .18s ease;
+    text-align:center; min-width:0;
+  }
+  .sector:hover{ background:linear-gradient(160deg, rgba(32,58,90,.75), rgba(12,24,40,.8)); box-shadow:inset 0 0 26px rgba(95,212,255,.18); }
+  .sector:focus-visible{ outline:2px solid var(--cyan); outline-offset:-3px; }
+  .sector.is-full{ border-color:rgba(51,209,122,.55); background:linear-gradient(160deg, rgba(22,54,38,.6), rgba(8,20,14,.7)); }
+  .sector.is-full:hover{ box-shadow:inset 0 0 26px rgba(51,209,122,.22); }
+
+  .sname{
+    font-weight:700; font-size:clamp(8px,1.9vw,12px); letter-spacing:.03em;
+    text-transform:uppercase; color:var(--text-1); line-height:1.1;
+  }
+  .stag{
+    font-family:var(--font-mono); font-size:clamp(6px,1.1vw,7.5px); letter-spacing:.14em;
+    color:var(--cyan); opacity:.75; text-transform:uppercase; margin-top:-2px;
+  }
+  .scount{ font-family:var(--font-mono); font-size:clamp(9px,1.9vw,12.5px); color:var(--cyan); }
+  .sector.is-full .scount{ color:var(--green); }
+  .sfill{ width:68%; height:3px; background:rgba(255,255,255,.10); border-radius:2px; overflow:hidden; }
+  .sfill i{ display:block; height:100%; background:var(--cyan); transition:width .3s ease; }
+  .sector.is-full .sfill i{ background:var(--green); }
+  .savatars{ display:flex; height:14px; margin-top:1px; }
+  .savatars img{ width:14px; height:14px; border-radius:50%; object-fit:cover; border:1px solid var(--bg-deep); margin-left:-5px; }
+  .savatars img:first-child{ margin-left:0; }
+  .savatars .more{ font-family:var(--font-mono); font-size:8px; color:var(--text-3); margin-left:3px; }
+  .full-tag{
+    position:absolute; top:4px; right:5px;
+    font-family:var(--font-mono); font-size:7px; letter-spacing:.08em;
+    color:var(--green);
+  }
+
+  .legend{
+    margin-top:16px; font-family:var(--font-mono); font-size:11px; color:var(--text-3);
+    text-align:center; max-width:520px; line-height:1.6;
+  }
+  .legend b{ color:var(--text-2); }
+
+  /* ---------- Drawer ---------- */
+  .backdrop{
+    position:fixed; inset:0; background:rgba(3,7,14,.62);
+    opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:40;
+  }
+  .backdrop.open{ opacity:1; pointer-events:auto; }
+
+  .drawer{
+    position:fixed; top:0; right:0; height:100%;
+    width:min(430px,100vw);
+    background:linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+    border-left:1px solid var(--line-gold);
+    box-shadow:-24px 0 60px rgba(0,0,0,.55);
+    transform:translateX(100%);
+    transition:transform .3s ease;
+    z-index:41;
+    display:flex; flex-direction:column;
+  }
+  .drawer.open{ transform:translateX(0); }
+
+  .drawer-head{
+    padding:18px 20px 14px;
+    border-bottom:1px solid var(--line-gold-dim);
+  }
+  .drawer-head-row{ display:flex; align-items:center; gap:10px; }
+  .icon-btn{
+    width:32px; height:32px; flex-shrink:0;
+    border:1px solid var(--cyan-dim); background:rgba(95,212,255,.06);
+    border-radius:6px; color:var(--cyan); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+    transition:background .15s ease;
+  }
+  .icon-btn:hover{ background:rgba(95,212,255,.16); }
+
+  .sector-name-input{
+    flex:1; min-width:0;
+    background:transparent; border:none; border-bottom:1px solid transparent;
+    color:var(--text-1); font-family:var(--font-display); font-weight:700;
+    font-size:16px; letter-spacing:.03em; text-transform:uppercase;
+    padding:2px 0;
+  }
+  .sector-name-input:focus{ outline:none; border-bottom:1px solid var(--cyan); }
+
+  .drawer-subtitle{
+    font-family:var(--font-mono); font-size:10px; letter-spacing:.18em;
+    color:var(--text-3); text-transform:uppercase; margin:10px 0 0 42px;
+  }
+
+  .capacity-row{
+    margin:14px 0 0;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  .capacity-label{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:var(--text-3); text-transform:uppercase; }
+  .capacity-value{ font-family:var(--font-mono); font-size:15px; color:var(--cyan); }
+  .capacity-value.full{ color:var(--green); text-shadow:0 0 10px rgba(51,209,122,.5); }
+  .capacity-bar{ width:100%; height:5px; margin-top:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .capacity-bar i{ display:block; height:100%; background:linear-gradient(90deg, var(--cyan), var(--green)); width:0%; transition:width .3s ease; }
+
+  .drawer-body{
+    flex:1; overflow-y:auto; padding:16px 20px;
+    display:flex; flex-direction:column; gap:9px;
+  }
+  .empty-note{
+    color:var(--text-3); font-size:13px; text-align:center;
+    padding:26px 10px; font-style:italic; line-height:1.5;
+  }
+
+  .entry-card{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+    border-radius:8px; padding:7px 9px;
+  }
+  .entry-thumb{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    object-fit:cover; border:1px solid var(--cyan-dim); background:var(--bg-deep);
+  }
+  .entry-thumb.placeholder{
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 32% 32%, rgba(95,212,255,.30), rgba(95,212,255,.05));
+  }
+  .entry-thumb.placeholder span{
+    width:9px; height:9px; background:var(--cyan-dim);
+    transform:rotate(45deg); display:block;
+  }
+  .entry-fields{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .entry-label-input{
+    background:transparent; border:none; color:var(--text-1);
+    font-size:13.5px; padding:0; width:100%;
+  }
+  .entry-label-input::placeholder{ color:var(--text-3); }
+  .entry-label-input:focus{ outline:none; }
+  .entry-value-row{ display:flex; align-items:center; gap:5px; }
+  .entry-value-input{
+    width:50px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14);
+    border-radius:4px; color:var(--cyan); font-family:var(--font-mono); font-size:12px;
+    padding:2px 4px; text-align:center;
+  }
+  .entry-value-input:focus{ outline:1px solid var(--cyan); }
+  .entry-value-unit{ font-family:var(--font-mono); font-size:10px; color:var(--text-3); }
+  .entry-remove{
+    background:none; border:none; color:var(--red); cursor:pointer;
+    font-size:15px; line-height:1; padding:4px; opacity:.75;
+  }
+  .entry-remove:hover{ opacity:1; }
+
+  /* ---------- Add bar ---------- */
+  .drawer-add{
+    border-top:1px solid var(--line-gold-dim);
+    padding:13px 20px 18px;
+  }
+  .add-row{ display:flex; align-items:center; gap:8px; }
+  .upload-box{
+    width:44px; height:44px; flex-shrink:0; border-radius:8px;
+    border:1px dashed var(--cyan-dim); background:rgba(95,212,255,.04);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    color:var(--cyan); font-size:18px; overflow:hidden; position:relative;
+  }
+  .upload-box:hover{ background:rgba(95,212,255,.10); }
+  .upload-box img{ width:100%; height:100%; object-fit:cover; }
+  .upload-box input{ display:none; }
+  .add-value-input{
+    width:56px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14);
+    border-radius:6px; color:var(--cyan); font-family:var(--font-mono); font-size:13px;
+    padding:8px 6px; text-align:center;
+  }
+  .add-value-input::placeholder{ color:var(--text-3); font-family:var(--font-mono); font-size:11px; }
+  .add-label-input{
+    flex:1; min-width:0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14);
+    border-radius:6px; color:var(--text-1); font-size:13px; padding:8px 10px;
+  }
+  .add-label-input::placeholder{ color:var(--text-3); }
+  .add-confirm{
+    flex-shrink:0; border:1px solid var(--green); background:rgba(51,209,122,.14);
+    color:var(--green); font-family:var(--font-body); font-weight:700; letter-spacing:.05em;
+    font-size:12px; text-transform:uppercase; padding:9px 14px; border-radius:6px; cursor:pointer;
+    transition:background .15s ease;
+  }
+  .add-confirm:hover{ background:rgba(51,209,122,.26); }
+  .add-error{ color:var(--red); font-size:11.5px; margin-top:7px; min-height:14px; }
+
+  .full-notice{
+    border:1px solid rgba(51,209,122,.45); background:rgba(51,209,122,.08);
+    border-radius:8px; padding:12px 14px; text-align:center;
+    font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em;
+    color:var(--green); line-height:1.6;
+  }
+
+  /* ---------- Confirm overlay (custom, no native dialogs) ---------- */
+  .confirm-overlay{
+    position:fixed; inset:0; background:rgba(3,7,14,.72);
+    display:none; align-items:center; justify-content:center; z-index:60; padding:20px;
+  }
+  .confirm-overlay.open{ display:flex; }
+  .confirm-box{
+    width:min(360px,92vw); background:var(--bg-panel); border:1px solid var(--line-gold);
+    border-radius:10px; padding:22px; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .confirm-box p{ font-size:14px; color:var(--text-1); line-height:1.5; margin:0 0 18px; }
+  .confirm-actions{ display:flex; gap:10px; justify-content:center; }
+  .confirm-actions button{
+    flex:1; padding:9px 0; border-radius:6px; cursor:pointer; font-size:12px;
+    letter-spacing:.06em; text-transform:uppercase; font-weight:700;
+  }
+  .confirm-cancel{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); color:var(--text-2); }
+  .confirm-ok{ background:rgba(255,97,97,.16); border:1px solid var(--red); color:var(--red); }
+
+  .loading-note{
+    text-align:center; color:var(--text-3); font-family:var(--font-mono);
+    font-size:12px; letter-spacing:.1em; padding:60px 20px;
+  }
+
+  .file-bar{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    flex-wrap:wrap; margin-bottom:18px;
+  }
+  .file-status{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.08em;
+    color:var(--text-3); text-transform:uppercase;
+  }
+  .file-status.ok{ color:var(--green); }
+  .file-status.warn{ color:var(--line-gold); }
+  .file-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .file-btn{
+    font-family:var(--font-body); font-weight:600; font-size:12px; letter-spacing:.03em;
+    text-transform:uppercase; padding:6px 12px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--cyan); background:rgba(95,212,255,.10); color:var(--cyan);
+    transition:background .15s ease;
+  }
+  .file-btn:hover{ background:rgba(95,212,255,.22); }
+  .file-btn.ghost{
+    border-color:rgba(255,255,255,.18); background:transparent; color:var(--text-2);
+  }
+  .file-btn.ghost:hover{ background:rgba(255,255,255,.06); color:var(--text-1); }
+
+  @media (max-width:520px){
+    .drawer{ width:100vw; }
+    .totals-box{ min-width:0; flex:1; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="app-header">
+    <div>
+      <p class="brand-eyebrow">Guild Operations</p>
+      <h1 class="brand-title">TERRITORY WAR <span>DEFENSE GRID</span></h1>
+    </div>
+    <div class="totals-box">
+      <div class="totals-label">Total Assigned</div>
+      <div class="totals-value" id="totalsValue"><b>0</b> / 420</div>
+      <div class="totals-bar"><i id="totalsBar"></i></div>
+      <button class="reset-link" id="resetAllBtn" type="button">Reset all sectors</button>
+    </div>
+  </header>
+
+  <main class="map-stage">
+    <div class="file-bar">
+      <span class="file-status" id="fileStatusText">Checking for a local data file&hellip;</span>
+      <div class="file-actions">
+        <button class="file-btn" id="connectBtn" type="button" hidden>Connect Data File</button>
+        <button class="file-btn ghost" id="exportBtn" type="button">Export JSON</button>
+        <button class="file-btn ghost" id="importBtn" type="button">Import JSON</button>
+        <input type="file" id="importInput" accept="application/json,.json" hidden />
+      </div>
+    </div>
+
+    <div class="holomap-wrap">
+      <div class="corner-tl"></div><div class="corner-tr"></div>
+      <div class="corner-bl"></div><div class="corner-br"></div>
+      <div class="holomap">
+        <div class="radar-sweep"></div>
+        <div class="grid-inset">
+          <div class="sector-grid" id="sectorGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="legend"><b>Tap a sector</b> to assign defenders. Each sector holds up to <b>42</b> — once it's full, you'll need to remove an entry before adding another.</p>
+  </main>
+
+  <div class="backdrop" id="backdrop"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <div class="drawer-head-row">
+        <button class="icon-btn" id="closeDrawerBtn" type="button" aria-label="Close">&#10094;</button>
+        <input class="sector-name-input" id="sectorNameInput" maxlength="40" />
+      </div>
+      <p class="drawer-subtitle">Assign Defenders</p>
+      <div class="capacity-row">
+        <span class="capacity-label">Capacity</span>
+        <span class="capacity-value" id="capacityValue">0 / 42</span>
+      </div>
+      <div class="capacity-bar"><i id="capacityBar"></i></div>
+    </div>
+
+    <div class="drawer-body" id="drawerBody"></div>
+
+    <div class="drawer-add" id="drawerAdd"></div>
+  </aside>
+
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <p id="confirmText">Are you sure?</p>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="confirmCancelBtn" type="button">Cancel</button>
+        <button class="confirm-ok" id="confirmOkBtn" type="button">Reset</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CAP = 42;
+
+  var SECTOR_DEFS = [
+    { id:"shipb", name:"Ship B", area:"g_shipb", tag:"Fleet" },
+    { id:"shipa", name:"Ship A", area:"g_shipa", tag:"Fleet" },
+    { id:"2a",    name:"2A",     area:"g_2a" },
+    { id:"1a",    name:"1A",     area:"g_1a" },
+    { id:"4a",    name:"4A",     area:"g_4a" },
+    { id:"3a",    name:"3A",     area:"g_3a" },
+    { id:"4b",    name:"4B",     area:"g_4b" },
+    { id:"3b",    name:"3B",     area:"g_3b" },
+    { id:"2b",    name:"2B",     area:"g_2b" },
+    { id:"1b",    name:"1B",     area:"g_1b" }
+  ];
+
+  function defaultData(){
+    var data = {};
+    SECTOR_DEFS.forEach(function(s){
+      data[s.id] = { name:s.name, entries:[] };
+    });
+    return data;
+  }
+
+  var state = {
+    sectors: defaultData(),
+    currentSectorId: null,
+    pendingImage: null
+  };
+
+  var el = {
+    grid: document.getElementById("sectorGrid"),
+    fileStatus: document.getElementById("fileStatusText"),
+    connectBtn: document.getElementById("connectBtn"),
+    exportBtn: document.getElementById("exportBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importInput: document.getElementById("importInput"),
+    totalsValue: document.getElementById("totalsValue"),
+    totalsBar: document.getElementById("totalsBar"),
+    resetAllBtn: document.getElementById("resetAllBtn"),
+    backdrop: document.getElementById("backdrop"),
+    drawer: document.getElementById("drawer"),
+    closeDrawerBtn: document.getElementById("closeDrawerBtn"),
+    sectorNameInput: document.getElementById("sectorNameInput"),
+    capacityValue: document.getElementById("capacityValue"),
+    capacityBar: document.getElementById("capacityBar"),
+    drawerBody: document.getElementById("drawerBody"),
+    drawerAdd: document.getElementById("drawerAdd"),
+    confirmOverlay: document.getElementById("confirmOverlay"),
+    confirmText: document.getElementById("confirmText"),
+    confirmCancelBtn: document.getElementById("confirmCancelBtn"),
+    confirmOkBtn: document.getElementById("confirmOkBtn")
+  };
+
+  function uid(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  }
+
+  function sectorTotal(sector){
+    return sector.entries.reduce(function(sum, e){ return sum + e.value; }, 0);
+  }
+
+  function grandTotal(){
+    var sum = 0;
+    SECTOR_DEFS.forEach(function(s){ sum += sectorTotal(state.sectors[s.id]); });
+    return sum;
+  }
+
+  /* ---------- persistence: local file (File System Access API + Export/Import fallback) ---------- */
+  var fsSupported = ("showOpenFilePicker" in window) && ("showSaveFilePicker" in window);
+  var fileHandle = null;
+  var pendingReconnectHandle = null;
+  var DB_NAME = "tw-defense-fs";
+  var DB_STORE = "handles";
+  var HANDLE_KEY = "source-handle";
+
+  function mergeWithDefaults(jsonStr){
+    var parsed = JSON.parse(jsonStr);
+    var merged = defaultData();
+    SECTOR_DEFS.forEach(function(s){
+      if (parsed[s.id]){
+        merged[s.id] = {
+          name: parsed[s.id].name || s.name,
+          entries: Array.isArray(parsed[s.id].entries) ? parsed[s.id].entries : []
+        };
+      }
+    });
+    return merged;
+  }
+
+  function setFileStatus(mode, name){
+    el.fileStatus.className = "file-status" + (mode === "ok" ? " ok" : mode === "warn" ? " warn" : "");
+    if (mode === "ok"){
+      el.fileStatus.textContent = "Connected to " + (name || "source.json") + " \u2014 autosaving";
+      el.connectBtn.hidden = true;
+      pendingReconnectHandle = null;
+    } else if (mode === "needs-permission"){
+      el.fileStatus.textContent = "Data file found (" + name + ") but needs reconnecting";
+      el.connectBtn.hidden = false;
+      el.connectBtn.textContent = "Reconnect to " + name;
+    } else if (mode === "unsupported"){
+      el.fileStatus.textContent = "This browser can't auto-save to a file \u2014 use Export / Import below";
+      el.connectBtn.hidden = true;
+      pendingReconnectHandle = null;
+    } else {
+      el.fileStatus.textContent = "Not connected \u2014 click Connect to auto-save to a local file";
+      el.connectBtn.hidden = false;
+      el.connectBtn.textContent = "Connect Data File";
+      pendingReconnectHandle = null;
+    }
+  }
+
+  /* IndexedDB just remembers the file handle between page loads (not the data itself) */
+  function idbOpen(){
+    return new Promise(function(resolve, reject){
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore(DB_STORE); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  function idbGetHandle(){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(DB_STORE, "readonly");
+        var req = tx.objectStore(DB_STORE).get(HANDLE_KEY);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    }).catch(function(){ return null; });
+  }
+  function idbSetHandle(handle){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(DB_STORE, "readwrite");
+        tx.objectStore(DB_STORE).put(handle, HANDLE_KEY);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    }).catch(function(){ /* ignore */ });
+  }
+
+  function readFileHandle(handle){
+    return handle.getFile()
+      .then(function(file){ return file.text(); })
+      .then(function(text){
+        if (text && text.trim()){
+          try { return mergeWithDefaults(text); } catch(e){ return null; }
+        }
+        return null;
+      });
+  }
+
+  function writeFileHandle(handle){
+    return handle.createWritable()
+      .then(function(writable){
+        return writable.write(JSON.stringify(state.sectors, null, 2)).then(function(){
+          return writable.close();
+        });
+      });
+  }
+
+  function saveData(){
+    if (!fsSupported || !fileHandle) return;
+    writeFileHandle(fileHandle)
+      .then(function(){ setFileStatus("ok", fileHandle.name); })
+      .catch(function(){ setFileStatus("warn", fileHandle.name); });
+  }
+
+  function connectFile(){
+    if (!fsSupported) return;
+    window.showSaveFilePicker({
+      suggestedName: "source.json",
+      types: [{ description: "Territory War defense data", accept: { "application/json": [".json"] } }]
+    }).then(function(handle){
+      fileHandle = handle;
+      idbSetHandle(handle);
+      return readFileHandle(handle).then(function(loaded){
+        if (loaded){
+          state.sectors = loaded;
+          renderGrid();
+        } else {
+          return writeFileHandle(handle);
+        }
+      });
+    }).then(function(){
+      setFileStatus("ok", fileHandle.name);
+    }).catch(function(err){
+      if (err && err.name === "AbortError") return; /* user cancelled the picker */
+      setFileStatus("warn", fileHandle ? fileHandle.name : "source.json");
+    });
+  }
+
+  function reconnectFile(handle){
+    return handle.requestPermission({ mode: "readwrite" }).then(function(perm){
+      if (perm !== "granted") throw new Error("permission denied");
+      fileHandle = handle;
+      return readFileHandle(handle);
+    }).then(function(loaded){
+      if (loaded){
+        state.sectors = loaded;
+        renderGrid();
+      }
+      setFileStatus("ok", handle.name);
+    }).catch(function(){
+      setFileStatus("needs-permission", handle.name);
+    });
+  }
+
+  function initFilePersistence(){
+    if (!fsSupported){
+      setFileStatus("unsupported");
+      return;
+    }
+    el.connectBtn.hidden = false;
+    setFileStatus("none");
+    idbGetHandle().then(function(handle){
+      if (!handle) return;
+      return handle.queryPermission({ mode: "readwrite" }).then(function(perm){
+        if (perm === "granted"){
+          fileHandle = handle;
+          return readFileHandle(handle).then(function(loaded){
+            if (loaded){ state.sectors = loaded; renderGrid(); }
+            setFileStatus("ok", handle.name);
+          });
+        }
+        setFileStatus("needs-permission", handle.name);
+        pendingReconnectHandle = handle;
+      });
+    });
+  }
+
+  /* ---------- export / import fallback (works in every browser) ---------- */
+  function exportJson(){
+    var blob = new Blob([JSON.stringify(state.sectors, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "source.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function importJson(file){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        state.sectors = mergeWithDefaults(String(e.target.result));
+        renderGrid();
+        if (state.currentSectorId) renderDrawer();
+        saveData();
+      } catch(err){ /* invalid file, ignore */ }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------- render: map ---------- */
+  function renderGrid(){
+    el.grid.innerHTML = "";
+    SECTOR_DEFS.forEach(function(def){
+      var sector = state.sectors[def.id];
+      var total = sectorTotal(sector);
+      var full = total >= CAP;
+      var pct = Math.min(100, Math.round((total / CAP) * 100));
+
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "sector" + (full ? " is-full" : "");
+      card.style.gridArea = def.area;
+      card.setAttribute("aria-label", sector.name + ", " + total + " of " + CAP + " assigned");
+
+      var html = "";
+      html += '<div class="sname">' + escapeHtml(sector.name) + '</div>';
+      if (def.tag) html += '<div class="stag">' + escapeHtml(def.tag) + '</div>';
+      html += '<div class="scount">' + total + ' / ' + CAP + '</div>';
+      html += '<div class="sfill"><i style="width:' + pct + '%"></i></div>';
+
+      var imgs = sector.entries.filter(function(e){ return e.img; }).slice(0,4);
+      if (imgs.length){
+        html += '<div class="savatars">';
+        imgs.forEach(function(e){ html += '<img src="' + e.img + '" alt="" />'; });
+        if (sector.entries.length > imgs.length){
+          html += '<span class="more">+' + (sector.entries.length - imgs.length) + '</span>';
+        }
+        html += '</div>';
+      }
+      if (full) html += '<div class="full-tag">FULL</div>';
+
+      card.innerHTML = html;
+      card.addEventListener("click", function(){ openDrawer(def.id); });
+      el.grid.appendChild(card);
+    });
+
+    var gt = grandTotal();
+    var maxTotal = SECTOR_DEFS.length * CAP;
+    el.totalsValue.innerHTML = "<b>" + gt + "</b> / " + maxTotal;
+    el.totalsBar.style.width = Math.min(100, Math.round((gt / maxTotal) * 100)) + "%";
+  }
+
+  /* ---------- render: drawer ---------- */
+  function openDrawer(sectorId){
+    state.currentSectorId = sectorId;
+    state.pendingImage = null;
+    el.backdrop.classList.add("open");
+    el.drawer.classList.add("open");
+    renderDrawer();
+  }
+
+  function closeDrawer(){
+    el.backdrop.classList.remove("open");
+    el.drawer.classList.remove("open");
+    state.currentSectorId = null;
+  }
+
+  function renderDrawer(){
+    var id = state.currentSectorId;
+    if (!id) return;
+    var sector = state.sectors[id];
+    var total = sectorTotal(sector);
+    var full = total >= CAP;
+    var remaining = Math.max(0, CAP - total);
+
+    el.sectorNameInput.value = sector.name;
+    el.capacityValue.textContent = total + " / " + CAP + (full ? "  \u2014 FULL" : "");
+    el.capacityValue.className = "capacity-value" + (full ? " full" : "");
+    el.capacityBar.style.width = Math.min(100, Math.round((total / CAP) * 100)) + "%";
+
+    /* entries list */
+    el.drawerBody.innerHTML = "";
+    if (!sector.entries.length){
+      var empty = document.createElement("p");
+      empty.className = "empty-note";
+      empty.textContent = "No defenders assigned yet. Add one below to begin.";
+      el.drawerBody.appendChild(empty);
+    } else {
+      sector.entries.forEach(function(entry){
+        el.drawerBody.appendChild(buildEntryCard(sector, entry, remaining));
+      });
+    }
+
+    /* add bar */
+    el.drawerAdd.innerHTML = "";
+    if (full){
+      var notice = document.createElement("div");
+      notice.className = "full-notice";
+      notice.textContent = "SECTOR FULL \u2014 42 / 42 assigned. Remove a defender to add another.";
+      el.drawerAdd.appendChild(notice);
+    } else {
+      el.drawerAdd.appendChild(buildAddBar(sector, remaining));
+    }
+  }
+
+  function buildEntryCard(sector, entry, remainingExcl){
+    var card = document.createElement("div");
+    card.className = "entry-card";
+
+    var thumb;
+    if (entry.img){
+      thumb = document.createElement("img");
+      thumb.className = "entry-thumb";
+      thumb.src = entry.img;
+      thumb.alt = "";
+    } else {
+      thumb = document.createElement("div");
+      thumb.className = "entry-thumb placeholder";
+      thumb.innerHTML = "<span></span>";
+    }
+    card.appendChild(thumb);
+
+    var fields = document.createElement("div");
+    fields.className = "entry-fields";
+
+    var labelInput = document.createElement("input");
+    labelInput.className = "entry-label-input";
+    labelInput.type = "text";
+    labelInput.placeholder = "Label (optional)";
+    labelInput.value = entry.label || "";
+    labelInput.maxLength = 40;
+    labelInput.addEventListener("change", function(){
+      entry.label = labelInput.value.trim();
+      saveData();
+    });
+    fields.appendChild(labelInput);
+
+    var valueRow = document.createElement("div");
+    valueRow.className = "entry-value-row";
+
+    var maxForThisEntry = CAP - (sectorTotal(sector) - entry.value);
+    var valueInput = document.createElement("input");
+    valueInput.className = "entry-value-input";
+    valueInput.type = "number";
+    valueInput.min = "1";
+    valueInput.max = String(maxForThisEntry);
+    valueInput.value = String(entry.value);
+    valueInput.addEventListener("change", function(){
+      var v = parseInt(valueInput.value, 10);
+      var maxAllowed = CAP - (sectorTotal(sector) - entry.value);
+      if (isNaN(v) || v < 1) v = 1;
+      if (v > maxAllowed) v = maxAllowed;
+      entry.value = v;
+      valueInput.value = String(v);
+      saveData();
+      renderDrawer();
+      renderGrid();
+    });
+    valueRow.appendChild(valueInput);
+
+    var unit = document.createElement("span");
+    unit.className = "entry-value-unit";
+    unit.textContent = "pts";
+    valueRow.appendChild(unit);
+
+    fields.appendChild(valueRow);
+    card.appendChild(fields);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.className = "entry-remove";
+    removeBtn.type = "button";
+    removeBtn.innerHTML = "&times;";
+    removeBtn.setAttribute("aria-label", "Remove entry");
+    removeBtn.addEventListener("click", function(){
+      var idx = sector.entries.indexOf(entry);
+      if (idx > -1) sector.entries.splice(idx, 1);
+      saveData();
+      renderDrawer();
+      renderGrid();
+    });
+    card.appendChild(removeBtn);
+
+    return card;
+  }
+
+  function buildAddBar(sector, remaining){
+    var wrap = document.createElement("div");
+
+    var row = document.createElement("div");
+    row.className = "add-row";
+
+    var uploadBox = document.createElement("label");
+    uploadBox.className = "upload-box";
+    uploadBox.innerHTML = state.pendingImage
+      ? '<img src="' + state.pendingImage + '" alt="" />'
+      : "+";
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.addEventListener("change", function(){
+      var file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      resizeImage(file, 96).then(function(dataUrl){
+        state.pendingImage = dataUrl;
+        renderDrawer();
+      }).catch(function(){ /* ignore bad image */ });
+    });
+    uploadBox.appendChild(fileInput);
+    row.appendChild(uploadBox);
+
+    var valueInput = document.createElement("input");
+    valueInput.className = "add-value-input";
+    valueInput.type = "number";
+    valueInput.min = "1";
+    valueInput.max = String(remaining);
+    valueInput.placeholder = "Value";
+    row.appendChild(valueInput);
+
+    var labelInput = document.createElement("input");
+    labelInput.className = "add-label-input";
+    labelInput.type = "text";
+    labelInput.maxLength = 40;
+    labelInput.placeholder = "Label (optional)";
+    row.appendChild(labelInput);
+
+    var confirmBtn = document.createElement("button");
+    confirmBtn.className = "add-confirm";
+    confirmBtn.type = "button";
+    confirmBtn.textContent = "Add";
+    row.appendChild(confirmBtn);
+
+    var errorLine = document.createElement("div");
+    errorLine.className = "add-error";
+
+    confirmBtn.addEventListener("click", function(){
+      var v = parseInt(valueInput.value, 10);
+      if (isNaN(v) || v < 1){
+        errorLine.textContent = "Enter a value between 1 and " + remaining + ".";
+        return;
+      }
+      if (v > remaining){
+        errorLine.textContent = "Only " + remaining + " slot" + (remaining === 1 ? "" : "s") + " left in this sector.";
+        return;
+      }
+      sector.entries.push({
+        id: uid(),
+        img: state.pendingImage,
+        value: v,
+        label: labelInput.value.trim()
+      });
+      state.pendingImage = null;
+      saveData();
+      renderDrawer();
+      renderGrid();
+    });
+
+    wrap.appendChild(row);
+    wrap.appendChild(errorLine);
+    return wrap;
+  }
+
+  function resizeImage(file, maxSize){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(e){
+        var img = new Image();
+        img.onload = function(){
+          var w = img.width, h = img.height;
+          var scale = Math.min(1, maxSize / Math.max(w, h));
+          w = Math.max(1, Math.round(w * scale));
+          h = Math.max(1, Math.round(h * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          try {
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
+          } catch(err){ reject(err); }
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function escapeHtml(str){
+    var d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  /* ---------- sector name editing ---------- */
+  el.sectorNameInput.addEventListener("change", function(){
+    var id = state.currentSectorId;
+    if (!id) return;
+    var name = el.sectorNameInput.value.trim();
+    state.sectors[id].name = name || state.sectors[id].name;
+    el.sectorNameInput.value = state.sectors[id].name;
+    saveData();
+    renderGrid();
+  });
+
+  /* ---------- drawer open/close ---------- */
+  el.closeDrawerBtn.addEventListener("click", closeDrawer);
+  el.backdrop.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape") closeDrawer();
+  });
+
+  /* ---------- reset all (custom confirm, no native dialogs) ---------- */
+  var pendingConfirmAction = null;
+  function showConfirm(text, onOk){
+    el.confirmText.textContent = text;
+    pendingConfirmAction = onOk;
+    el.confirmOverlay.classList.add("open");
+  }
+  function hideConfirm(){
+    el.confirmOverlay.classList.remove("open");
+    pendingConfirmAction = null;
+  }
+  el.confirmCancelBtn.addEventListener("click", hideConfirm);
+  el.confirmOkBtn.addEventListener("click", function(){
+    if (pendingConfirmAction) pendingConfirmAction();
+    hideConfirm();
+  });
+  el.resetAllBtn.addEventListener("click", function(){
+    showConfirm("Reset every sector? This clears all assigned defenders and can't be undone.", function(){
+      state.sectors = defaultData();
+      saveData();
+      closeDrawer();
+      renderGrid();
+    });
+  });
+
+  /* ---------- file controls ---------- */
+  el.connectBtn.addEventListener("click", function(){
+    if (pendingReconnectHandle){
+      var h = pendingReconnectHandle;
+      pendingReconnectHandle = null;
+      reconnectFile(h);
+    } else {
+      connectFile();
+    }
+  });
+  el.exportBtn.addEventListener("click", exportJson);
+  el.importBtn.addEventListener("click", function(){ el.importInput.click(); });
+  el.importInput.addEventListener("change", function(){
+    var file = el.importInput.files && el.importInput.files[0];
+    if (file) importJson(file);
+    el.importInput.value = "";
+  });
+
+  /* ---------- init ---------- */
+  renderGrid();
+  initFilePersistence();
+
+})();
+</script>
+</body>
+</html>
